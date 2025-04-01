@@ -29,10 +29,10 @@ if [ ! -f $CACHE_FILE ]; then
   cd libheif-$LIBHEIF_VERSION
 
   echo "-----> Building libheif"
-  ./configure --prefix=$INSTALL_DIR
+  ./configure --prefix=$INSTALL_DIR --enable-multithreading
   make && make install
   cd ..
-  rm -rf libheif-$LIBHEIF_VERSION
+  rm -rf libheif-$LIBHEIF_VERSION $LIBHEIF_FILE
 
   # install imagemagick
   IMAGE_MAGICK_FILE="ImageMagick-$IMAGE_MAGICK_VERSION.tar.xz"
@@ -52,13 +52,25 @@ if [ ! -f $CACHE_FILE ]; then
 
   echo "-----> Building ImageMagick"
   cd $IMAGE_MAGICK_DIR
+  # Set environment variables for proper linkage
+  export PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig"
   export CPPFLAGS="-I$INSTALL_DIR/include"
   export LDFLAGS="-L$INSTALL_DIR/lib"
-  export PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig"
-  ./configure --prefix=$INSTALL_DIR --with-heic=yes --with-modules --enable-shared --disable-static
+  # Run ldconfig to update library cache
+  ldconfig $INSTALL_DIR/lib || true
+
+  ./configure --prefix=$INSTALL_DIR \
+    --with-heic=yes \
+    --with-modules \
+    --enable-shared \
+    --disable-static \
+    --with-quantum-depth=16 \
+    --with-heic-libs=$INSTALL_DIR/lib \
+    --with-heic-includes=$INSTALL_DIR/include
+
   make && make install
   cd ..
-  rm -rf $IMAGE_MAGICK_DIR
+  rm -rf $IMAGE_MAGICK_DIR $IMAGE_MAGICK_FILE
 
   # cache for future deploys
   echo "-----> Caching ImageMagick installation"
@@ -88,6 +100,7 @@ cat > $INSTALL_DIR/etc/ImageMagick/policy.xml <<EOF
   <policy domain="coder" rights="none" pattern="MVG" />
   <policy domain="coder" rights="none" pattern="MSL" />
   <policy domain="coder" rights="read|write" pattern="HEIC" />
+  <policy domain="coder" rights="read|write" pattern="HEIF" />
 </policymap>
 EOF
 
@@ -95,7 +108,8 @@ echo "-----> Writing delegates file"
 cat > $INSTALL_DIR/etc/ImageMagick/delegates.xml <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <delegatemap>
-  <delegate decode="heic" command="&quot;$INSTALL_DIR/bin/heif-convert&quot; -q %i %o"/>
+  <delegate decode="heic" command="heif-convert '%i' '%o'" />
+  <delegate decode="heif" command="heif-convert '%i' '%o'" />
 </delegatemap>
 EOF
 
@@ -105,6 +119,8 @@ cat > $INSTALL_DIR/etc/ImageMagick/magic.xml <<EOF
  <magic name="JPEG" offset="0" target="\377\330\377"/>
  <magic name="PNG" offset="0" target="\211PNG\r\n\032\n"/>
  <magic name="HEIC" offset="4" target="ftypheic"/>
+ <magic name="HEIF" offset="4" target="ftypheif"/>
+ <magic name="HEIC" offset="4" target="ftypmif1"/>
 </magicmap>
 EOF
 
@@ -113,8 +129,14 @@ echo "-----> Updating environment variables"
 PROFILE_PATH="$BUILD_DIR/.profile.d/imagemagick.sh"
 ACTUAL_INSTALL_PATH="$HOME/vendor/imagemagick"
 mkdir -p $(dirname $PROFILE_PATH)
-echo "export PATH=$ACTUAL_INSTALL_PATH/bin:\$PATH" >> $PROFILE_PATH
-echo "export LD_LIBRARY_PATH=$ACTUAL_INSTALL_PATH/lib:\$LD_LIBRARY_PATH:/usr/local/lib" >> $PROFILE_PATH
-echo "export MAGICK_CONFIGURE_PATH=$ACTUAL_INSTALL_PATH/etc/ImageMagick" >> $PROFILE_PATH
-echo "export MAGICK_HOME=$ACTUAL_INSTALL_PATH" >> $PROFILE_PATH
+
+cat > $PROFILE_PATH <<EOF
+export PATH="$ACTUAL_INSTALL_PATH/bin:\$PATH"
+export LD_LIBRARY_PATH="$ACTUAL_INSTALL_PATH/lib:\$LD_LIBRARY_PATH"
+export MAGICK_CONFIGURE_PATH="$ACTUAL_INSTALL_PATH/etc/ImageMagick"
+export MAGICK_HOME="$ACTUAL_INSTALL_PATH"
+export MAGICK_CODER_MODULE_PATH="$ACTUAL_INSTALL_PATH/lib/ImageMagick-7.1.1/modules-Q16HDRI/coders"
+export HEIF_PLUGIN_PATH="$ACTUAL_INSTALL_PATH/lib/libheif"
+EOF
+
 echo "-----> Done updating environment variables. All set for ImageMagick."
