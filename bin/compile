@@ -11,9 +11,29 @@ CACHE_DIR=$2
 VENDOR_DIR="$BUILD_DIR/vendor"
 INSTALL_DIR="$VENDOR_DIR/imagemagick"
 IMAGE_MAGICK_VERSION="${IMAGE_MAGICK_VERSION:-7.1.1-47}"
+LIBHEIF_VERSION="${LIBHEIF_VERSION:-1.18.2}"
 CACHE_FILE="$CACHE_DIR/imagemagick-$IMAGE_MAGICK_VERSION.tar.gz"
 
 if [ ! -f $CACHE_FILE ]; then
+  # Install libheif first
+  echo "-----> Installing libheif dependency"
+  LIBHEIF_FILE="libheif-$LIBHEIF_VERSION.tar.gz"
+  LIBHEIF_URL="https://github.com/strukturag/libheif/releases/download/v$LIBHEIF_VERSION/$LIBHEIF_FILE"
+
+  echo "-----> Downloading libheif from $LIBHEIF_URL"
+  wget $LIBHEIF_URL -P $BUILD_DIR | indent
+
+  echo "-----> Extracting libheif"
+  cd $BUILD_DIR
+  tar xzf $LIBHEIF_FILE | indent
+  cd libheif-$LIBHEIF_VERSION
+
+  echo "-----> Building libheif"
+  ./configure --prefix=$INSTALL_DIR
+  make && make install
+  cd ..
+  rm -rf libheif-$LIBHEIF_VERSION
+
   # install imagemagick
   IMAGE_MAGICK_FILE="ImageMagick-$IMAGE_MAGICK_VERSION.tar.xz"
   IMAGE_MAGICK_DIR="ImageMagick-$IMAGE_MAGICK_VERSION"
@@ -34,7 +54,8 @@ if [ ! -f $CACHE_FILE ]; then
   cd $IMAGE_MAGICK_DIR
   export CPPFLAGS="-I$INSTALL_DIR/include"
   export LDFLAGS="-L$INSTALL_DIR/lib"
-  ./configure --prefix=$INSTALL_DIR
+  export PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig"
+  ./configure --prefix=$INSTALL_DIR --with-heic=yes
   make && make install
   cd ..
   rm -rf $IMAGE_MAGICK_DIR
@@ -72,8 +93,8 @@ EOF
 echo "-----> Writing config file"
 cat > $INSTALL_DIR/magic.xml <<EOF
 <magicmap>
- <magic name="JPEG" offset="0" target="\377\330\377"/> 
- <magic name="PNG" offset="0" target="\211PNG\r\n\032\n"/> 
+ <magic name="JPEG" offset="0" target="\377\330\377"/>
+ <magic name="PNG" offset="0" target="\211PNG\r\n\032\n"/>
 </magicmap>
 EOF
 
