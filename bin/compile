@@ -55,7 +55,7 @@ if [ ! -f $CACHE_FILE ]; then
   export CPPFLAGS="-I$INSTALL_DIR/include"
   export LDFLAGS="-L$INSTALL_DIR/lib"
   export PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig"
-  ./configure --prefix=$INSTALL_DIR --with-heic=yes
+  ./configure --prefix=$INSTALL_DIR --with-heic=yes --with-modules --enable-shared --disable-static
   make && make install
   cd ..
   rm -rf $IMAGE_MAGICK_DIR
@@ -81,20 +81,30 @@ fi
 
 echo "-----> Writing policy file"
 mkdir -p $INSTALL_DIR/etc/ImageMagick
-cat > $INSTALL_DIR/policy.xml <<EOF
+cat > $INSTALL_DIR/etc/ImageMagick/policy.xml <<EOF
 <policymap>
   <policy domain="coder" rights="none" pattern="EPHEMERAL" />
   <policy domain="coder" rights="none" pattern="HTTPS" />
   <policy domain="coder" rights="none" pattern="MVG" />
   <policy domain="coder" rights="none" pattern="MSL" />
+  <policy domain="coder" rights="read|write" pattern="HEIC" />
 </policymap>
 EOF
 
+echo "-----> Writing delegates file"
+cat > $INSTALL_DIR/etc/ImageMagick/delegates.xml <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<delegatemap>
+  <delegate decode="heic" command="&quot;$INSTALL_DIR/bin/heif-convert&quot; -q %i %o"/>
+</delegatemap>
+EOF
+
 echo "-----> Writing config file"
-cat > $INSTALL_DIR/magic.xml <<EOF
+cat > $INSTALL_DIR/etc/ImageMagick/magic.xml <<EOF
 <magicmap>
  <magic name="JPEG" offset="0" target="\377\330\377"/>
  <magic name="PNG" offset="0" target="\211PNG\r\n\032\n"/>
+ <magic name="HEIC" offset="4" target="ftypheic"/>
 </magicmap>
 EOF
 
@@ -105,5 +115,6 @@ ACTUAL_INSTALL_PATH="$HOME/vendor/imagemagick"
 mkdir -p $(dirname $PROFILE_PATH)
 echo "export PATH=$ACTUAL_INSTALL_PATH/bin:\$PATH" >> $PROFILE_PATH
 echo "export LD_LIBRARY_PATH=$ACTUAL_INSTALL_PATH/lib:\$LD_LIBRARY_PATH:/usr/local/lib" >> $PROFILE_PATH
-echo "export MAGICK_CONFIGURE_PATH=$ACTUAL_INSTALL_PATH" >> $PROFILE_PATH
+echo "export MAGICK_CONFIGURE_PATH=$ACTUAL_INSTALL_PATH/etc/ImageMagick" >> $PROFILE_PATH
+echo "export MAGICK_HOME=$ACTUAL_INSTALL_PATH" >> $PROFILE_PATH
 echo "-----> Done updating environment variables. All set for ImageMagick."
