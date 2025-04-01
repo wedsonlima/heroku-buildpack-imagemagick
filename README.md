@@ -59,7 +59,7 @@ For libheif versions, check the [releases page](https://github.com/strukturag/li
 Since the installation is cached you might want to clean it out due to config changes.
 
 1. `heroku plugins:install heroku-repo`
-2. `heroku repo:purge_cache -app HEROKU_APP_NAME`
+2. `heroku repo:purge_cache -a HEROKU_APP_NAME`
 
 ### Troubleshooting
 
