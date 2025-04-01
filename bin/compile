@@ -11,29 +11,9 @@ CACHE_DIR=$2
 VENDOR_DIR="$BUILD_DIR/vendor"
 INSTALL_DIR="$VENDOR_DIR/imagemagick"
 IMAGE_MAGICK_VERSION="${IMAGE_MAGICK_VERSION:-7.1.1-47}"
-LIBHEIF_VERSION="${LIBHEIF_VERSION:-1.18.2}"
 CACHE_FILE="$CACHE_DIR/imagemagick-$IMAGE_MAGICK_VERSION.tar.gz"
 
 if [ ! -f $CACHE_FILE ]; then
-  # Install libheif and tools first
-  echo "-----> Installing libheif dependency"
-  LIBHEIF_FILE="libheif-$LIBHEIF_VERSION.tar.gz"
-  LIBHEIF_URL="https://github.com/strukturag/libheif/releases/download/v$LIBHEIF_VERSION/$LIBHEIF_FILE"
-
-  echo "-----> Downloading libheif from $LIBHEIF_URL"
-  wget $LIBHEIF_URL -P $BUILD_DIR | indent
-
-  echo "-----> Extracting libheif"
-  cd $BUILD_DIR
-  tar xzf $LIBHEIF_FILE | indent
-  cd libheif-$LIBHEIF_VERSION
-
-  echo "-----> Building libheif"
-  ./configure --prefix=$INSTALL_DIR --enable-multithreading --bindir=$INSTALL_DIR/bin
-  make && make install
-  cd ..
-  rm -rf libheif-$LIBHEIF_VERSION $LIBHEIF_FILE
-
   # install imagemagick
   IMAGE_MAGICK_FILE="ImageMagick-$IMAGE_MAGICK_VERSION.tar.xz"
   IMAGE_MAGICK_DIR="ImageMagick-$IMAGE_MAGICK_VERSION"
@@ -52,20 +32,13 @@ if [ ! -f $CACHE_FILE ]; then
 
   echo "-----> Building ImageMagick"
   cd $IMAGE_MAGICK_DIR
-  # Set environment variables for proper linkage
-  export PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig"
-  export CPPFLAGS="-I$INSTALL_DIR/include"
-  export LDFLAGS="-L$INSTALL_DIR/lib"
-  # Run ldconfig to update library cache
-  ldconfig $INSTALL_DIR/lib || true
 
   ./configure --prefix=$INSTALL_DIR \
     --with-heic=yes \
     --with-modules \
     --enable-shared \
     --disable-static \
-    --with-quantum-depth=16 \
-    --with-pkgconfig-dir=$INSTALL_DIR/lib/pkgconfig
+    --with-quantum-depth=16
 
   make && make install
   cd ..
@@ -130,18 +103,11 @@ ACTUAL_INSTALL_PATH="$HOME/vendor/imagemagick"
 mkdir -p $(dirname $PROFILE_PATH)
 
 cat > $PROFILE_PATH <<EOF
-# Add ImageMagick and HEIF tools to PATH
 export PATH="$ACTUAL_INSTALL_PATH/bin:\$PATH"
 export LD_LIBRARY_PATH="$ACTUAL_INSTALL_PATH/lib:\$LD_LIBRARY_PATH"
 export MAGICK_CONFIGURE_PATH="$ACTUAL_INSTALL_PATH/etc/ImageMagick"
 export MAGICK_HOME="$ACTUAL_INSTALL_PATH"
 export MAGICK_CODER_MODULE_PATH="$ACTUAL_INSTALL_PATH/lib/ImageMagick-7.1.1/modules-Q16HDRI/coders"
-export HEIF_PLUGIN_PATH="$ACTUAL_INSTALL_PATH/lib/libheif"
-
-# Ensure heif-convert is found
-if [ -f "$ACTUAL_INSTALL_PATH/bin/heif-convert" ]; then
-  chmod +x "$ACTUAL_INSTALL_PATH/bin/heif-convert"
-fi
 EOF
 
 echo "-----> Done updating environment variables. All set for ImageMagick."
